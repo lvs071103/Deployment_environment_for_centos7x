@@ -1,0 +1,10 @@
+/data/db/mysql/logs/*.log {
+daily
+rotate 7
+missingok
+notifempty
+sharedscripts
+postrotate
+/opt/mysql/bin/mysqladmin --login-path=local flush-logs
+endscript
+}

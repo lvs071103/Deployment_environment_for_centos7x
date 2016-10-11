@@ -1,0 +1,9 @@
+/data/logs/tomcat6_logs/catalina.out{
+daily
+rotate 7
+missingok
+dateext
+compress
+notifempty
+copytruncate
+}

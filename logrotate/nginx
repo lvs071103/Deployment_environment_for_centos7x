@@ -1,0 +1,12 @@
+/data/lnmp/nginx/logs/*.log {
+daily
+rotate 7
+missingok
+notifempty
+sharedscripts
+postrotate
+    if [ -f /var/run/nginx.pid ]; then
+        kill -USR1 `cat /var/run/nginx.pid`
+    fi
+endscript
+}

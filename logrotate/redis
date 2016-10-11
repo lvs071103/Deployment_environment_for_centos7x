@@ -1,0 +1,9 @@
+/data/db/redis/log/*.log {
+    daily
+    rotate 7
+    copytruncate
+    delaycompress
+    compress
+    notifempty
+    missingok
+}

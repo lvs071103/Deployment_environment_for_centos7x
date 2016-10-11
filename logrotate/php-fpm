@@ -1,0 +1,12 @@
+/data/lnmp/php56/var/log/*.log {
+daily
+rotate 7
+missingok
+notifempty
+sharedscripts
+postrotate
+    if [ -f /data/lnmp/php56/var/run/php-fpm.pid  ]; then
+        kill -USR1 `cat /data/lnmp/php56/var/run/php-fpm.pid`
+    fi
+endscript
+}
