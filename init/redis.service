@@ -1,0 +1,13 @@
+[Unit]
+Description=Redis persistent key-value database
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/local/lnmp/redis/sbin/redis-server /usr/local/lnmp/redis/conf/redis.conf
+ExecReload=/bin/kill -USR2 $MAINPID
+ExecStop=/usr/local/lnmp/redis/bin/redis-cli shutdown
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

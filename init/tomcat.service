@@ -1,0 +1,23 @@
+#Systemd unit file for tomcat.
+
+[Unit]
+Description=Apache Tomcat Web Application Container
+After=syslog.target network.target
+
+[Service]
+Type=forking
+
+Environment=JAVA_HOME=/usr/local/lnmp/jdk1.7.0_79/jre
+Environment=CATALINA_PID=/var/run/tomcat/tomcat.pid
+Environment=CATALINA_HOME=/usr/local/lnmp/tomcat6
+Environment=CATALINA_BASE=/usr/local/lnmp/tomcat6
+Environment='CATALINA_OPTS=-Xms128m -Xmx256m -server -XX:PermSize=128m -XX:MaxNewSize=128m -XX:MaxPermSize=256m -Xss256k'
+Environment='JAVA_OPTS=-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom'
+
+ExecStart=/usr/local/lnmp/tomcat6/bin/startup.sh
+ExecStop=/usr/local/lnmp/tomcat6/bin/shutdown.sh
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
