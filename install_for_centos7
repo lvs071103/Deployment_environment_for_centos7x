@@ -427,6 +427,7 @@ else
         sed -i 's/Server=127.0.0.1/Server=10.105.51.217/' /usr/local/lnmp/zabbix/etc/zabbix_agentd.conf
         sed -i 's/ServerActive=127.0.0.1/ServerActive=10.105.51.217/' /usr/local/lnmp/zabbix/etc/zabbix_agentd.conf
         sed -i "s/Hostname=Zabbix server/Hostname=${hostname}/" /usr/local/lnmp/zabbix/etc/zabbix_agentd.conf
+	systemctl enable zabbix_agent.service
         systemctl start zabbix_agent.service
 fi
 }
