@@ -1,7 +1,7 @@
 #!/bin/bash
 # The script for centos 7 minimal environment
 # author: Jack
-# v1.02
+# v1.03
 
 if [ "$UID" -ne 0 ];then
 	echo "must be run by root!"
@@ -406,6 +406,31 @@ set_ntp(){
 	ntpdate
 }
 
+install_zabbix_agent()
+{
+if [ ! -e ./zabbix-3.0.4.tar.gz ];then
+        wget http://sourceforge.net/projects/zabbix/files/ZABBIX%20Latest%20Stable/3.0.4/zabbix-3.0.4.tar.gz
+fi
+if [ -d "/usr/local/lnmp/zabbix" ];then
+        echo "zabbix directory is exist."
+else
+        hostname=$(hostname)
+        if id "zabbix" > /dev/null 2>&1; then
+                echo "zabbix exists."
+        else
+                useradd -M -s /sbin/nologin zabbix
+        fi
+        tar zxf zabbix-3.0.4.tar.gz
+        cd zabbix-3.0.4
+        ./configure --prefix=/usr/local/lnmp/zabbix --enable-agent && make && make install
+        cp ../init/zabbix_agent.service /usr/lib/systemd/system/
+        sed -i 's/Server=127.0.0.1/Server=10.105.51.217/' /usr/local/lnmp/zabbix/etc/zabbix_agentd.conf
+        sed -i 's/ServerActive=127.0.0.1/ServerActive=10.105.51.217/' /usr/local/lnmp/zabbix/etc/zabbix_agentd.conf
+        sed -i "s/Hostname=Zabbix server/Hostname=${hostname}/" /usr/local/lnmp/zabbix/etc/zabbix_agentd.conf
+        systemctl start zabbix_agent.service
+fi
+}
+
 case "$1" in
 	dep)
 	install_dep
@@ -445,6 +470,9 @@ case "$1" in
 	;;
 	tomcat)
 	install_tomcat
+	;;
+	zabbix_agent)
+	install_zabbix_agent
 	;;
 	*)
 	echo "error flag!"
