@@ -84,7 +84,7 @@ if [ ! -d /usr/local/lnmp/mysql ];then
 	mkdir /data/db/mysql/logs
 	chown -R mysql.mysql /data/db/mysql/logs
 	chown -R mysql.mysql /data/db/mysql_binlog
-	#systemctl start mysqld.service
+	systemctl start mysqld.service
 else
 		echo "mysql directory is exist. will be quit"
 		exit 0
