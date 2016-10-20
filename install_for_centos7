@@ -1,5 +1,5 @@
 #!/bin/bash
-# The script for centos 6 minimal environment
+# The script for centos 7 minimal environment
 
 if [ "$UID" -ne 0 ];then
 	echo "must be run by root!"
@@ -30,12 +30,13 @@ install_dep(){
 install_mysql(){
 if [ ! -d /usr/local/lnmp/mysql ];then
 	echo "download mysql ..."
-	if [ ! -f ./mysql-boost-5.7.15.tar.gz ];then
-		wget http://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-boost-5.7.15.tar.gz
+	if [ ! -f ./mysql-5.6.26.tar.gz ];then
+		# wget http://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-boost-5.7.15.tar.gz
+		wget http://dev.mysql.com/get/Downloads/MySQL-5.6/mysql-5.6.26.tar.gz
 	fi
 	echo "decompression ..."
-	tar zxf mysql-boost-5.7.15.tar.gz
-	cd mysql-boost-5.7.15
+	tar zxf mysql-5.6.26.tar.gz
+	cd mysql-5.6.26
 	echo "compile phase ..."
 	cmake \
 	-DCMAKE_INSTALL_PREFIX=/usr/local/lnmp/mysql \
@@ -71,9 +72,11 @@ if [ ! -d /usr/local/lnmp/mysql ];then
 	if [ -f /etc/my.cnf ];then
 		rm -rf /etc/my.cnf
 	fi
-	/usr/local/lnmp/mysql/bin/mysqld --user=mysql --basedir=/usr/local/lnmp/mysql --datadir=/data/db/mysql/var/ --explicit_defaults_for_timestamp --initialize --initialize-insecure
+	# /usr/local/lnmp/mysql/bin/mysqld --user=mysql --basedir=/usr/local/lnmp/mysql --datadir=/data/db/mysql/var/ --explicit_defaults_for_timestamp --initialize --initialize-insecure
+	/usr/local/lnmp/mysql/scripts/mysql_install_db --user=mysql --basedir=/usr/local/lnmp/mysql --datadir=/data/db/mysql/var --explicit_defaults_for_times
 	cp  ../init/mysqld.service  /usr/lib/systemd/system/mysqld.service
 	cp ../conf/my.cnf /etc/
+        cp ../logrotate/mysql /etc/logrotate.d/
 	mkdir /data/db/mysql_binlog
 	mkdir /data/db/mysql/logs
 	chown -R mysql.mysql /data/db/mysql/logs
@@ -136,6 +139,7 @@ else
 	sed -i 's#;always_populate_raw_post_data = -1#always_populate_raw_post_data = -1#' /usr/local/lnmp/php56/lib/php.ini
 	systemctl start php-fpm.service
 	cp -rf ../profile.d/php.sh /etc/profile.d/
+	cp ../logrotate/php-fpm /etc/logrotate.d/
 	source /etc/profile.d/php.sh
 fi
 }
@@ -213,18 +217,26 @@ else
 	if [ "$?" -eq 0 ];then
 		mkdir -p /usr/local/lnmp/redis/{bin,conf,sbin,run}
 		cd src
-		cp redis-benchmark redis-check-aof redis-cli redis-sentinel redis-check-dump /usr/local/lnmp/redis/bin/
+		cp redis-benchmark redis-check-aof redis-check-rdb redis-cli redis-sentinel redis-trib.rb mkreleasehdr.sh /usr/local/lnmp/redis/bin/
 		cp redis-server /usr/local/lnmp/redis/sbin
 		cd ..
 		cp redis.conf /usr/local/lnmp/redis/conf/redis.conf
 		mkdir -p /data/logs/redis_logs
-		mkdir -p /data/db/redis
+		mkdir -p /data/db/redis/data
 		cp ../init/redis.service /usr/lib/systemd/system/
 		sed -i 's/daemonize no/daemonize yes/' /usr/local/lnmp/redis/conf/redis.conf
 		sed -i 's#pidfile /var/run/redis.pid#pidfile /usr/local/lnmp/redis/run/redis_6379.pid#' /usr/local/lnmp/redis/conf/redis.conf
 		sed -i 's#logfile ""#logfile "/data/logs/redis_logs/redis.log"#' /usr/local/lnmp/redis/conf/redis.conf
 		sed -i 's#dbfilename dump.rdb#dbfilename data.rdb#' /usr/local/lnmp/redis/conf/redis.conf
 		sed -i 's#dir ./#dir /data/db/redis/data#' /usr/local/lnmp/redis/conf/redis.conf
+		if [ -s /etc/sysctl.conf ];then
+			sed -i '$a\vm.overcommit_memory=1' /etc/sysctl.conf
+			sed -i '$a\net.core.somaxconn=10000' /etc/sysctl.conf
+		else
+			echo -n 'vm.overcommit_memory=1' > /etc/sysctl.conf
+			sed -i '$a\net.core.somaxconn=10000' /etc/sysctl.conf
+		fi
+		sed -i '$a\if test -f /sys/kernel/mm/transparent_hugepage/enabled; then\n    echo never > /sys/kernel/mm/transparent_hugepage/enabled\nfi\n\nif test -f /sys/kernel/mm/transparent_hugepage/defrag; then\n    echo never > /sys/kernel/mm/transparent_hugepage/defrag\nfi\n' /etc/rc.d/rc.local
 		systemctl start redis.service
 		cp ../profile.d/redis.sh /etc/profile.d/
 		source /etc/profile.d/redis.sh
@@ -234,8 +246,9 @@ else
 fi
 }
 
+# mongo for centos 6.x
 install_mongo(){
-if [ -d "/data/lnmp/mongo" ];then
+if [ -d "/usr/local/lnmp/mongo" ];then
 	echo "mongo directory is exist."
 else
 	echo "install mongo ..."
@@ -244,27 +257,75 @@ else
 	fi
 	tar zxvf mongodb-linux-x86_64-3.0.6.tgz
 	mv mongodb-linux-x86_64-3.0.6 /data/lnmp/mongo
-	mkdir /data/lnmp/mongo/{conf,data,logs}
+	mkdir /usr/local/lnmp/mongo/{conf,data,logs}
 	cp init/mongod /etc/init.d/mongod
 	chmod a+x /etc/init.d/mongod
-	cp conf/mongod.conf /data/lnmp/mongo/conf
+	cp conf/mongod.conf /usr/local/lnmp/mongo/conf
 	cp profile.d/mongo.sh /etc/profile.d/
 	if [ ! `cat /etc/passwd | awk -F: '{print $1}'| grep mongod` ];then
 		groupadd mongod && useradd -M -g mongod -s /sbin/nologin mongod
 	fi
-	chown -R mongod. /data/lnmp/mongo/logs
-	chown -R mongod. /data/lnmp/mongo/data
-	echo never > "/sys/kernel/mm/transparent_hugepage/enabled"
-	echo never > "/sys/kernel/mm/transparent_hugepage/defrag"
+	chown -R mongod. /usr/local/lnmp/mongo/logs
+	chown -R mongod. /usr/local/lnmp/mongo/data
+	sed -i '$a\if test -f /sys/kernel/mm/transparent_hugepage/enabled; then\n    echo never > /sys/kernel/mm/transparent_hugepage/enabled\nfi\n\nif test -f /sys/kernel/mm/transparent_hugepage/defrag; then\n    echo never > /sys/kernel/mm/transparent_hugepage/defrag\nfi\n' /etc/rc.d/rc.local
 	/etc/init.d/mongod start
 	chkconfig --add mongod
 	chkconfig mongod on
 fi
 }
 
+install_jdk()
+{
+if [ -d "/usr/local/lnmp/jdk1.7.0_79" ];then
+	echo "jdk1.7.0_79 directory is exist."
+	exit 0
+else
+	echo "install jdk now ..."
+	if [ ! -e "./jdk-7u79-linux-x64.tar.gz"];then
+		echo "Please Manual Download"
+		exit 1
+	else
+		tar zxf jdk-7u79-linux-x64.tar.gz
+		if [ "$?" -eq 0 ];then
+			mv jdk1.7.0_79 /usr/local/lnmp/
+			cp profile.d/jdk.sh /etc/profile.d/
+			source /etc/profile.d/jdk.sh
+		fi
+	fi
+fi
+}
+
+install_tomcat()
+{
+if [ -d "/usr/local/lnmp/tomcat6" ];then
+	echo "tomcat6 directory is exist."
+	exit 0
+else
+	if [ ! -e "./apache-tomcat-6.0.47.tar.gz" ];then
+		wget http://apache.tt.co.kr/tomcat/tomcat-6/v6.0.47/bin/apache-tomcat-6.0.47.tar.gz
+	fi
+
+	tar zxf apache-tomcat-6.0.47.tar.gz
+	mv apache-tomcat-6.0.47 /usr/local/lnmp/tomcat6
+	cp init/tomcat.service /usr/lib/systemd/system/
+	sed -i 's#CATALINA_OUT="$CATALINA_BASE"/logs/catalina.out#CATALINA_OUT=/data/logs/tomcat_logs/catalina.out#' /usr/local/lnmp/tomcat6/bin/catalina.sh
+	mkdir -p /data/logs/tomcat_logs
+	cp logrotate/tomcat /etc/logrotate.d/
+	systemctl start tomcat.service
+	if [ "$?" -eq 0 ];then
+		echo "tomcat install success."
+		exit 0
+	else
+		echo "tomcat start failed."
+		exit 1
+	fi
+fi
+
+}
+
 install_nginx(){
 if [ -d /usr/local/lnmp/nginx ];then
-	echo "openresty directory is exist."
+	echo "nginx directory is exist."
 else
 	if [ ! `ls ./nginx-1.8.1.tar.gz` ];then
 		wget http://nginx.org/download/nginx-1.8.1.tar.gz
@@ -288,6 +349,7 @@ else
 	mv /usr/local/lnmp/nginx/conf/nginx.conf /usr/local/lnmp/nginx/conf/nginx.conf.old
 	cp ../conf/nginx.conf /usr/local/lnmp/nginx/conf
 	/bin/cp -rf ../conf/vhosts /usr/local/lnmp/nginx/conf/
+	cp ../logrotate/nginx /etc/logrotate.d/
 	systemctl start nginx.service
 fi
 }
@@ -375,6 +437,12 @@ case "$1" in
 	;;
 	memcached)
 	install_memcached
+	;;
+	jdk)
+	install_jdk
+	;;
+	tomcat)
+	install_tomcat
 	;;
 	*)
 	echo "error flag!"

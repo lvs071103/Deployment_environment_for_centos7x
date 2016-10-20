@@ -1,4 +1,4 @@
-/data/lnmp/nginx/logs/*.log {
+/data/logs/nginx_logs/*.log {
 daily
 rotate 7
 missingok
