@@ -29,6 +29,16 @@ install_dep(){
 	fi
 }
 
+
+check_is_exists()
+{
+if id "$1" > /dev/null 2>&1; then
+	echo "$1 exists."
+else
+	useradd -M -s /sbin/nologin $1
+fi
+}
+
 install_mysql(){
 if [ ! -d /usr/local/lnmp/mysql ];then
 	echo "download mysql ..."
@@ -54,21 +64,12 @@ if [ ! -d /usr/local/lnmp/mysql ];then
 	if [ "$?" -eq 0 ];then
 		make -j 4 && make install
 	fi
-
-	if [ ! `cat /etc/group | awk -F: '{print $1}'| grep mysql` ];then
-		groupadd mysql
-	fi
-	if [ ! `cat /etc/passwd | awk -F: '{print $1}'| grep mysql` ];then
-		useradd -M -g mysql -s /sbin/nologin mysql
-	fi
-
+	check_is_exists mysql
 	cp ../profile.d/mysql.sh /etc/profile.d/
 	echo "/usr/local/mysql/lib" > /etc/ld.so.conf.d/mysql.conf
 	ldconfig
 	source /etc/profile.d/mysql.sh
-	echo
 	echo "init ..."
-	echo
 	mkdir -p /data/db/mysql/var
 	chown -R mysql:mysql /data/db/mysql/var
 	if [ -f /etc/my.cnf ];then
@@ -133,7 +134,7 @@ else
 	sed -i 's#listen = 127.0.0.1:9000#listen = /usr/local/lnmp/php56/var/run/php-fpm.sock#' /usr/local/lnmp/php56/etc/php-fpm.conf
 	sed -i 's/;listen.owner = nobody/listen.owner = nobody/' /usr/local/lnmp/php56/etc/php-fpm.conf
 	sed -i 's/;listen.group = nobody/listen.group = nobody/' /usr/local/lnmp/php56/etc/php-fpm.conf
-	sed -i 's/;pm.max_requests = 500/pm.max_requests = 500/' /usr/local/lnmp/php56/etc/php-fpm.conf
+	sed -i 's/;pm.max_requests = 500/pm.max_requests = 300/' /usr/local/lnmp/php56/etc/php-fpm.conf
 	sed '/; extension_dir = "ext"/ a\extension_dir = "/usr/local/lnmp/php56/lib/php/extensions/no-debug-non-zts-20131226"\n\nzend_extension =opcache.so\nopcache.enable=1\nopcache.memory_consumption = 64\nopcache.interned_strings_buffer = 8\nopcache.max_accelerated_files = 4000\nopcache.revalidate_freq = 60\nopcache.fast_shutdown = 1\nopcache.enable_cli = 1\n' -i /usr/local/lnmp/php56/lib/php.ini
 	sed -i 's#expose_php = On#expose_php = Off#' /usr/local/lnmp/php56/lib/php.ini
 	sed -i 's#short_open_tag = Off#short_open_tag = On#' /usr/local/lnmp/php56/lib/php.ini
@@ -264,9 +265,7 @@ else
 	chmod a+x /etc/init.d/mongod
 	cp conf/mongod.conf /usr/local/lnmp/mongo/conf
 	cp profile.d/mongo.sh /etc/profile.d/
-	if [ ! `cat /etc/passwd | awk -F: '{print $1}'| grep mongod` ];then
-		groupadd mongod && useradd -M -g mongod -s /sbin/nologin mongod
-	fi
+	check_is_exists mongod
 	chown -R mongod. /usr/local/lnmp/mongo/logs
 	chown -R mongod. /usr/local/lnmp/mongo/data
 	sed -i '$a\if test -f /sys/kernel/mm/transparent_hugepage/enabled; then\n    echo never > /sys/kernel/mm/transparent_hugepage/enabled\nfi\n\nif test -f /sys/kernel/mm/transparent_hugepage/defrag; then\n    echo never > /sys/kernel/mm/transparent_hugepage/defrag\nfi\n' /etc/rc.d/rc.local
@@ -315,7 +314,7 @@ else
 	cp logrotate/tomcat /etc/logrotate.d/
 	systemctl start tomcat.service
 	if [ "$?" -eq 0 ];then
-		echo "tomcat install success."
+		echo "tomcat start success."
 		exit 0
 	else
 		echo "tomcat start failed."
@@ -375,9 +374,7 @@ install_memcached(){
 		cp ../init/memcached.service /usr/lib/systemd/system/
 		mkdir -p /usr/local/lnmp/memcached/lock/subsys/
 		mkdir /usr/local/lnmp/memcached/run
-		#/etc/init.d/memcached start
-		groupadd memcached
-		useradd -M -g memcached -s /sbin/nologin memcached
+		check_is_exists memcached
 		systemctl daemon-reload
 		systemctl start memcached.service
 	fi		
@@ -415,11 +412,7 @@ if [ -d "/usr/local/lnmp/zabbix" ];then
         echo "zabbix directory is exist."
 else
         hostname=$(hostname)
-        if id "zabbix" > /dev/null 2>&1; then
-                echo "zabbix exists."
-        else
-                useradd -M -s /sbin/nologin zabbix
-        fi
+	check_is_exists zabbix
         tar zxf zabbix-3.0.4.tar.gz
         cd zabbix-3.0.4
         ./configure --prefix=/usr/local/lnmp/zabbix --enable-agent && make && make install
