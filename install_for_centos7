@@ -1,7 +1,13 @@
 #!/bin/bash
 # The script for centos 7 minimal environment
 # author: Jack
-# v1.04
+# v1.05
+
+BASE_DIR='/usr/local/lnmp'
+LOGROTATE_DIR='/etc/logrotate.d/'
+SYSTEMD_DIR='/usr/lib/systemd/system/'
+PROFILED_DIR='/etc/profile.d'
+LOG_DIR='/data/logs'
 
 if [ "$UID" -ne 0 ];then
 	echo "must be run by root!"
@@ -49,15 +55,14 @@ fi
 }
 
 install_mysql(){
-if [ ! -d /usr/local/lnmp/mysql ];then
+if [ ! -d "${BASE_DIR}/mysql" ];then
 	if [ ! -f ./mysql-5.6.26.tar.gz ];then
-		# wget http://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-boost-5.7.15.tar.gz
 		wget http://dev.mysql.com/get/Downloads/MySQL-5.6/mysql-5.6.26.tar.gz
 	fi
 	tar zxf mysql-5.6.26.tar.gz
 	cd mysql-5.6.26
 	cmake \
-	-DCMAKE_INSTALL_PREFIX=/usr/local/lnmp/mysql \
+	-DCMAKE_INSTALL_PREFIX=${BASE_DIR}/mysql \
 	-DMYSQL_DATADIR=/data/db/mysql/var \
 	-DSYSCONFDIR=/etc \
 	-DMYSQL_UNIX_ADDR=/tmp/mysql.sock \
@@ -66,26 +71,24 @@ if [ ! -d /usr/local/lnmp/mysql ];then
 	-DDEFAULT_COLLATION=utf8_general_ci \
 	-DEXTRA_CHARSETS=all \
 	-DDOWNLOAD_BOOST=1 \
-	-DWITH_BOOST=/usr/local/lnmp/boost
+	-DWITH_BOOST=${BASE_DIR}/boost
 	if [ "$?" -eq 0 ];then
 		make -j 4 && make install
 	fi
 	check_is_exists mysql
-	cp ../profile.d/mysql.sh /etc/profile.d/
-	echo "/usr/local/mysql/lib" > /etc/ld.so.conf.d/mysql.conf
+	cp ../profile.d/mysql.sh ${PROFILED_DIR}/
+	echo "${BASE_DIR}/mysql/lib" > /etc/ld.so.conf.d/mysql.conf
 	ldconfig
-	source /etc/profile.d/mysql.sh
-	echo "init ..."
+	source ${PROFILED_DIR}/mysql.sh
 	mkdir -p /data/db/mysql/var
 	chown -R mysql:mysql /data/db/mysql/var
 	if [ -f /etc/my.cnf ];then
 		rm -rf /etc/my.cnf
 	fi
-	# /usr/local/lnmp/mysql/bin/mysqld --user=mysql --basedir=/usr/local/lnmp/mysql --datadir=/data/db/mysql/var/ --explicit_defaults_for_timestamp --initialize --initialize-insecure
-	/usr/local/lnmp/mysql/scripts/mysql_install_db --user=mysql --basedir=/usr/local/lnmp/mysql --datadir=/data/db/mysql/var --explicit_defaults_for_times
-	cp  ../init/mysqld.service  /usr/lib/systemd/system/mysqld.service
+	${BASE_DIR}/mysql/scripts/mysql_install_db --user=mysql --basedir=${BASE_DIR}/mysql --datadir=/data/db/mysql/var --explicit_defaults_for_times
+	cp  ../init/mysqld.service  ${SYSTEMD_DIR}
 	cp ../conf/my.cnf /etc/
-        cp ../logrotate/mysql /etc/logrotate.d/
+        cp ../logrotate/mysql ${LOGROTATE_DIR}
 	mkdir /data/db/mysql_binlog
 	mkdir /data/db/mysql/logs
 	chown -R mysql.mysql /data/db/mysql/logs
@@ -98,12 +101,11 @@ fi
 }
 
 install_php(){
-if [ -d "/usr/local/lnmp/php56" ];then
+if [ -d "${BASE_DIR}/php56" ];then
 	echo "php directory is exist."
 	exit 0
 else
 	if [ ! -f ./php-5.6.12.tar.gz ];then
-		echo "download php ..."
 		wget http://cn.php.net/get/php-5.6.12.tar.gz/from/this/mirror -O php-5.6.12.tar.gz
 	fi
 	tar zxf php-5.6.12.tar.gz
@@ -112,7 +114,7 @@ else
 	ln -s /usr/lib64/liblber-2.4.so.2 /usr/lib/
         ln -s /usr/lib64/liblber.so /usr/lib/
 	cd php-5.6.12
-	./configure --prefix=/usr/local/lnmp/php56 \
+	./configure --prefix=${BASE_DIR}/php56 \
 	--with-zlib --with-mysql=mysqlnd --with-mysqli=mysqlnd \
 	--with-pdo-mysql=mysqlnd --with-jpeg-dir --with-png-dir --with-freetype-dir \
 	--with-libexpat-dir --with-libxml-dir --with-gd --with-openssl --with-iconv \
@@ -129,25 +131,25 @@ else
 	else
 		exit 1
 	fi
-	cp php.ini-production /usr/local/lnmp/php56/lib/php.ini
-	cp -rf ../init/php-fpm.service /usr/lib/systemd/system/
-	cp /usr/local/lnmp/php56/etc/php-fpm.conf.default /usr/local/lnmp/php56/etc/php-fpm.conf
-	sed -i 's/;pid = run\/php-fpm.pid/pid = run\/php-fpm.pid/' /usr/local/lnmp/php56/etc/php-fpm.conf
-	sed -i 's/;error_log = log\/php-fpm.log/error_log = log\/php-fpm.log/' /usr/local/lnmp/php56/etc/php-fpm.conf
-	sed -i 's/;daemonize = yes/daemonize = yes/' /usr/local/lnmp/php56/etc/php-fpm.conf
-	sed -i 's#listen = 127.0.0.1:9000#listen = /usr/local/lnmp/php56/var/run/php-fpm.sock#' /usr/local/lnmp/php56/etc/php-fpm.conf
-	sed -i 's/;listen.owner = nobody/listen.owner = nobody/' /usr/local/lnmp/php56/etc/php-fpm.conf
-	sed -i 's/;listen.group = nobody/listen.group = nobody/' /usr/local/lnmp/php56/etc/php-fpm.conf
-	sed -i 's/;pm.max_requests = 500/pm.max_requests = 300/' /usr/local/lnmp/php56/etc/php-fpm.conf
-	sed '/; extension_dir = "ext"/ a\extension_dir = "/usr/local/lnmp/php56/lib/php/extensions/no-debug-non-zts-20131226"\n\nzend_extension =opcache.so\nopcache.enable=1\nopcache.memory_consumption = 64\nopcache.interned_strings_buffer = 8\nopcache.max_accelerated_files = 4000\nopcache.revalidate_freq = 60\nopcache.fast_shutdown = 1\nopcache.enable_cli = 1\n' -i /usr/local/lnmp/php56/lib/php.ini
-	sed -i 's#expose_php = On#expose_php = Off#' /usr/local/lnmp/php56/lib/php.ini
-	sed -i 's#short_open_tag = Off#short_open_tag = On#' /usr/local/lnmp/php56/lib/php.ini
-	sed -i 's#;cgi.fix_pathinfo=1#cgi.fix_pathinfo=0#' /usr/local/lnmp/php56/lib/php.ini
-	sed -i 's#;always_populate_raw_post_data = -1#always_populate_raw_post_data = -1#' /usr/local/lnmp/php56/lib/php.ini
+	cp php.ini-production ${BASE_DIR}/php56/lib/php.ini
+	cp -rf ../init/php-fpm.service ${SYSTEMD_DIR}
+	cp ${BASE_DIR}/php56/etc/php-fpm.conf.default ${BASE_DIR}/php56/etc/php-fpm.conf
+	sed -i 's/;pid = run\/php-fpm.pid/pid = run\/php-fpm.pid/' ${BASE_DIR}/php56/etc/php-fpm.conf
+	sed -i 's/;error_log = log\/php-fpm.log/error_log = log\/php-fpm.log/' ${BASE_DIR}/php56/etc/php-fpm.conf
+	sed -i 's/;daemonize = yes/daemonize = yes/' ${BASE_DIR}/php56/etc/php-fpm.conf
+	sed -i 's#listen = 127.0.0.1:9000#listen = ${BASE_DIR}/php56/var/run/php-fpm.sock#' ${BASE_DIR}/php56/etc/php-fpm.conf
+	sed -i 's/;listen.owner = nobody/listen.owner = nobody/' ${BASE_DIR}/php56/etc/php-fpm.conf
+	sed -i 's/;listen.group = nobody/listen.group = nobody/' ${BASE_DIR}/php56/etc/php-fpm.conf
+	sed -i 's/;pm.max_requests = 500/pm.max_requests = 300/' ${BASE_DIR}/php56/etc/php-fpm.conf
+	sed '/; extension_dir = "ext"/ a\extension_dir = "${BASE_DIR}/php56/lib/php/extensions/no-debug-non-zts-20131226"\n\nzend_extension =opcache.so\nopcache.enable=1\nopcache.memory_consumption = 64\nopcache.interned_strings_buffer = 8\nopcache.max_accelerated_files = 4000\nopcache.revalidate_freq = 60\nopcache.fast_shutdown = 1\nopcache.enable_cli = 1\n' -i ${BASE_DIR}/php56/lib/php.ini
+	sed -i 's#expose_php = On#expose_php = Off#' ${BASE_DIR}/php56/lib/php.ini
+	sed -i 's#short_open_tag = Off#short_open_tag = On#' ${BASE_DIR}/php56/lib/php.ini
+	sed -i 's#;cgi.fix_pathinfo=1#cgi.fix_pathinfo=0#' ${BASE_DIR}/php56/lib/php.ini
+	sed -i 's#;always_populate_raw_post_data = -1#always_populate_raw_post_data = -1#' ${BASE_DIR}/php56/lib/php.ini
 	systemctl start php-fpm.service
-	cp -rf ../profile.d/php.sh /etc/profile.d/
-	cp ../logrotate/php-fpm /etc/logrotate.d/
-	source /etc/profile.d/php.sh
+	cp -rf ../profile.d/php.sh ${PROFILED_DIR}/
+	cp ../logrotate/php-fpm ${LOGROTATE_DIR}
+	source ${PROFILED_DIR}/php.sh
 fi
 }
 
@@ -157,8 +159,8 @@ php_ext(){
         fi
         tar zxvf igbinary-1.2.1.tgz
         cd igbinary-1.2.1
-	/usr/local/lnmp/php56/bin/phpize
-	./configure  --enable-igbinary --with-php-config=/usr/local/lnmp/php56/bin/php-config
+	${BASE_DIR}/php56/bin/phpize
+	./configure  --enable-igbinary --with-php-config=${BASE_DIR}/php56/bin/php-config
         if [ $? -eq 0 ];then
         	make && make install && cd ..
         else
@@ -170,8 +172,8 @@ php_ext(){
 	fi
 	tar zxvf php-mongo-1.6.10.tgz
 	cd mongo-1.6.10/
-	/usr/local/lnmp/php56/bin/phpize
-	./configure --with-php-config=/usr/local/lnmp/php56/bin/php-config --enable-mongo
+	${BASE_DIR}/php56/bin/phpize
+	./configure --with-php-config=${BASE_DIR}/php56/bin/php-config --enable-mongo
 	if [ "$?" -eq 0 ];then
 		make && make install && cd ..
 	else
@@ -183,8 +185,8 @@ php_ext(){
 	fi
 	tar zxvf php-redis-2.2.7.tgz
 	cd redis-2.2.7
-	/usr/local/lnmp/php56/bin/phpize
-	./configure --with-php-config=/usr/local/lnmp/php56/bin/php-config --enable-redis --enable-redis-igbinary
+	${BASE_DIR}/php56/bin/phpize
+	./configure --with-php-config=${BASE_DIR}/php56/bin/php-config --enable-redis --enable-redis-igbinary
 	if [ "$?" -eq 0 ];then
 		make && make install && cd ..
 	else
@@ -196,21 +198,21 @@ php_ext(){
 	fi
 	tar zxvf php-memcache-2.2.7.tgz
 	cd memcache-2.2.7/
-	/usr/local/lnmp/php56/bin/phpize
-	./configure --with-php-config=/usr/local/lnmp/php56/bin/php-config  --enable-memcache
+	${BASE_DIR}/php56/bin/phpize
+	./configure --with-php-config=${BASE_DIR}/php56/bin/php-config  --enable-memcache
 	if [ "$?" -eq 0 ];then
 		make && make install && cd ..
 	else
 		exit 1
 	fi
 
-	sed '/opcache.enable_cli = 1/ a\[mongo]\nextension = mongo.so\n[redis]\nextension = redis.so\n[memcache]\nextension = memcache.so\n[igbinary]\nextension = igbinary.so' -i /usr/local/lnmp/php56/lib/php.ini
+	sed '/opcache.enable_cli = 1/ a\[mongo]\nextension = mongo.so\n[redis]\nextension = redis.so\n[memcache]\nextension = memcache.so\n[igbinary]\nextension = igbinary.so' -i ${BASE_DIR}/php56/lib/php.ini
 	systemctl restart php-fpm.service
 
 }
 
 install_redis(){
-if [ -d /usr/local/lnmp/redis ];then
+if [ -d ${BASE_DIR}/redis ];then
 	echo "redis directory is exist."
 	exit 0
 else
@@ -222,20 +224,20 @@ else
 	cd redis-3.2.3
 	make && make test
 	if [ "$?" -eq 0 ];then
-		mkdir -p /usr/local/lnmp/redis/{bin,conf,sbin,run}
+		mkdir -p ${BASE_DIR}/redis/{bin,conf,sbin,run}
 		cd src
-		cp redis-benchmark redis-check-aof redis-check-rdb redis-cli redis-sentinel redis-trib.rb mkreleasehdr.sh /usr/local/lnmp/redis/bin/
-		cp redis-server /usr/local/lnmp/redis/sbin
+		cp redis-benchmark redis-check-aof redis-check-rdb redis-cli redis-sentinel redis-trib.rb mkreleasehdr.sh ${BASE_DIR}/redis/bin/
+		cp redis-server ${BASE_DIR}/redis/sbin
 		cd ..
-		cp redis.conf /usr/local/lnmp/redis/conf/redis.conf
-		mkdir -p /data/logs/redis_logs
+		cp redis.conf ${BASE_DIR}/redis/conf/redis.conf
+		mkdir -p ${LOG_DIR}/redis_logs
 		mkdir -p /data/db/redis/data
-		cp ../init/redis.service /usr/lib/systemd/system/
-		sed -i 's/daemonize no/daemonize yes/' /usr/local/lnmp/redis/conf/redis.conf
-		sed -i 's#pidfile /var/run/redis.pid#pidfile /usr/local/lnmp/redis/run/redis_6379.pid#' /usr/local/lnmp/redis/conf/redis.conf
-		sed -i 's#logfile ""#logfile "/data/logs/redis_logs/redis.log"#' /usr/local/lnmp/redis/conf/redis.conf
-		sed -i 's#dbfilename dump.rdb#dbfilename data.rdb#' /usr/local/lnmp/redis/conf/redis.conf
-		sed -i 's#dir ./#dir /data/db/redis/data#' /usr/local/lnmp/redis/conf/redis.conf
+		cp ../init/redis.service ${SYSTEMD_DIR}
+		sed -i 's/daemonize no/daemonize yes/' ${BASE_DIR}/redis/conf/redis.conf
+		sed -i 's#pidfile /var/run/redis.pid#pidfile ${BASE_DIR}/redis/run/redis_6379.pid#' ${BASE_DIR}/redis/conf/redis.conf
+		sed -i 's#logfile ""#logfile "${LOG_DIR}/redis_logs/redis.log"#' ${BASE_DIR}/redis/conf/redis.conf
+		sed -i 's#dbfilename dump.rdb#dbfilename data.rdb#' ${BASE_DIR}/redis/conf/redis.conf
+		sed -i 's#dir ./#dir /data/db/redis/data#' ${BASE_DIR}/redis/conf/redis.conf
 		if [ -s /etc/sysctl.conf ];then
 			sed -i '$a\vm.overcommit_memory=1' /etc/sysctl.conf
 			sed -i '$a\net.core.somaxconn=10000' /etc/sysctl.conf
@@ -244,8 +246,8 @@ else
 			sed -i '$a\net.core.somaxconn=10000' /etc/sysctl.conf
 		fi
 		systemctl start redis.service
-		cp ../profile.d/redis.sh /etc/profile.d/
-		source /etc/profile.d/redis.sh
+		cp ../profile.d/redis.sh ${PROFILED_DIR}/
+		source ${PROFILED_DIR}/redis.sh
 	else
 		exit 1
 	fi
@@ -254,7 +256,7 @@ fi
 
 # mongo for centos 6.x
 install_mongo(){
-if [ -d "/usr/local/lnmp/mongo" ];then
+if [ -d "${BASE_DIR}/mongo" ];then
 	echo "mongo directory is exist."
 else
 	echo "install mongo ..."
@@ -262,15 +264,15 @@ else
 		wget https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.0.6.tgz
 	fi
 	tar zxvf mongodb-linux-x86_64-3.0.6.tgz
-	mv mongodb-linux-x86_64-3.0.6 /data/lnmp/mongo
-	mkdir /usr/local/lnmp/mongo/{conf,data,logs}
+	mv mongodb-linux-x86_64-3.0.6 ${BASE_DIR}/mongo
+	mkdir ${BASE_DIR}/mongo/{conf,data,logs}
 	cp init/mongod /etc/init.d/mongod
 	chmod a+x /etc/init.d/mongod
-	cp conf/mongod.conf /usr/local/lnmp/mongo/conf
-	cp profile.d/mongo.sh /etc/profile.d/
+	cp conf/mongod.conf ${BASE_DIR}/mongo/conf
+	cp profile.d/mongo.sh ${PROFILED_DIR}/
 	check_is_exists mongod
-	chown -R mongod. /usr/local/lnmp/mongo/logs
-	chown -R mongod. /usr/local/lnmp/mongo/data
+	chown -R mongod. ${BASE_DIR}/mongo/logs
+	chown -R mongod. ${BASE_DIR}/mongo/data
 	/etc/init.d/mongod start
 	chkconfig --add mongod
 	chkconfig mongod on
@@ -279,7 +281,7 @@ fi
 
 install_jdk()
 {
-if [ -d "/usr/local/lnmp/jdk1.7.0_79" ];then
+if [ -d "${BASE_DIR}/jdk1.7.0_79" ];then
 	echo "jdk1.7.0_79 directory is exist."
 	exit 0
 else
@@ -290,9 +292,9 @@ else
 	else
 		tar zxf jdk-7u79-linux-x64.tar.gz
 		if [ "$?" -eq 0 ];then
-			mv jdk1.7.0_79 /usr/local/lnmp/
-			cp profile.d/jdk.sh /etc/profile.d/
-			source /etc/profile.d/jdk.sh
+			mv jdk1.7.0_79 ${BASE_DIR}/
+			cp profile.d/jdk.sh ${PROFILED_DIR}/
+			source ${PROFILED_DIR}/jdk.sh
 		fi
 	fi
 fi
@@ -300,7 +302,7 @@ fi
 
 install_tomcat()
 {
-if [ -d "/usr/local/lnmp/tomcat6" ];then
+if [ -d "${BASE_DIR}/tomcat6" ];then
 	echo "tomcat6 directory is exist."
 	exit 0
 else
@@ -309,11 +311,11 @@ else
 	fi
 
 	tar zxf apache-tomcat-6.0.47.tar.gz
-	mv apache-tomcat-6.0.47 /usr/local/lnmp/tomcat6
-	cp init/tomcat.service /usr/lib/systemd/system/
-	sed -i 's#CATALINA_OUT="$CATALINA_BASE"/logs/catalina.out#CATALINA_OUT=/data/logs/tomcat_logs/catalina.out#' /usr/local/lnmp/tomcat6/bin/catalina.sh
-	mkdir -p /data/logs/tomcat_logs
-	cp logrotate/tomcat /etc/logrotate.d/
+	mv apache-tomcat-6.0.47 ${BASE_DIR}/tomcat6
+	cp init/tomcat.service ${SYSTEMD_DIR}
+	sed -i 's#CATALINA_OUT="$CATALINA_BASE"/logs/catalina.out#CATALINA_OUT=${LOG_DIR}/tomcat_logs/catalina.out#' ${BASE_DIR}/tomcat6/bin/catalina.sh
+	mkdir -p ${LOG_DIR}/tomcat_logs
+	cp logrotate/tomcat ${LOGROTATE_DIR}
 	systemctl start tomcat.service
 	if [ "$?" -eq 0 ];then
 		echo "tomcat start success."
@@ -327,7 +329,7 @@ fi
 }
 
 install_nginx(){
-if [ -d /usr/local/lnmp/nginx ];then
+if [ -d ${BASE_DIR}/nginx ];then
 	echo "nginx directory is exist."
 	exit 0
 else
@@ -336,7 +338,7 @@ else
 	fi
 	tar zxvf nginx-1.8.1.tar.gz
 	cd nginx-1.8.1
-	./configure --prefix=/usr/local/lnmp/nginx --user=nobody \
+	./configure --prefix=${BASE_DIR}/nginx --user=nobody \
 	--group=nobody --with-ld-opt=-ljemalloc --with-http_ssl_module \
 	--with-http_addition_module --with-http_sub_module --with-http_dav_module \
 	--with-http_flv_module --with-http_gzip_static_module --with-http_stub_status_module \
@@ -348,17 +350,17 @@ else
 	else
 		exit 1
 	fi
-	cp ../init/nginx.service /usr/lib/systemd/system/nginx.service
-	mv /usr/local/lnmp/nginx/conf/nginx.conf /usr/local/lnmp/nginx/conf/nginx.conf.old
-	cp ../conf/nginx.conf /usr/local/lnmp/nginx/conf
-	/bin/cp -rf ../conf/vhosts /usr/local/lnmp/nginx/conf/
-	cp ../logrotate/nginx /etc/logrotate.d/
-	mkdir -p /data/logs/nginx_logs
+	cp ../init/nginx.service ${SYSTEMD_DIR}nginx.service
+	mv ${BASE_DIR}/nginx/conf/nginx.conf ${BASE_DIR}/nginx/conf/nginx.conf.old
+	cp ../conf/nginx.conf ${BASE_DIR}/nginx/conf
+	/bin/cp -rf ../conf/vhosts ${BASE_DIR}/nginx/conf/
+	cp ../logrotate/nginx ${LOGROTATE_DIR}
+	mkdir -p ${LOG_DIR}/nginx_logs
 	systemctl start nginx.service
 fi
 }
 install_memcached(){
-	if [ -d /usr/local/lnmp/memcached ];then
+	if [ -d ${BASE_DIR}/memcached ];then
 		echo "memcached directory is exist."
 		exit 0
 	else
@@ -368,16 +370,16 @@ install_memcached(){
 		tar zxvf memcached-1.4.24.tar.gz
 		cd memcached-1.4.24
 		echo "install memcache ..."
-		./configure --prefix=/usr/local/lnmp/memcached
+		./configure --prefix=${BASE_DIR}/memcached
 		if [ "$?" -eq 0 ];then
 			make && make install
 		else
 			exit 1
 		fi
 		cp ../init/memcached /etc/sysconfig/
-		cp ../init/memcached.service /usr/lib/systemd/system/
-		mkdir -p /usr/local/lnmp/memcached/lock/subsys/
-		mkdir /usr/local/lnmp/memcached/run
+		cp ../init/memcached.service ${SYSTEMD_DIR}
+		mkdir -p ${BASE_DIR}/memcached/lock/subsys/
+		mkdir ${BASE_DIR}/memcached/run
 		check_is_exists memcached
 		systemctl daemon-reload
 		systemctl start memcached.service
@@ -417,19 +419,20 @@ install_zabbix_agent()
 if [ ! -e ./zabbix-3.0.4.tar.gz ];then
         wget http://sourceforge.net/projects/zabbix/files/ZABBIX%20Latest%20Stable/3.0.4/zabbix-3.0.4.tar.gz
 fi
-if [ -d "/usr/local/lnmp/zabbix" ];then
+if [ -d "${BASE_DIR}/zabbix" ];then
         echo "zabbix directory is exist."
 	exit 0
 else
         hostname=$(hostname)
+	zabbix_server='10.105.51.217'
 	check_is_exists zabbix
         tar zxf zabbix-3.0.4.tar.gz
         cd zabbix-3.0.4
-        ./configure --prefix=/usr/local/lnmp/zabbix --enable-agent && make && make install
-        cp ../init/zabbix_agent.service /usr/lib/systemd/system/
-        sed -i 's/Server=127.0.0.1/Server=10.105.51.217/' /usr/local/lnmp/zabbix/etc/zabbix_agentd.conf
-        sed -i 's/ServerActive=127.0.0.1/ServerActive=10.105.51.217/' /usr/local/lnmp/zabbix/etc/zabbix_agentd.conf
-        sed -i "s/Hostname=Zabbix server/Hostname=${hostname}/" /usr/local/lnmp/zabbix/etc/zabbix_agentd.conf
+        ./configure --prefix=${BASE_DIR}/zabbix --enable-agent && make && make install
+        cp ../init/zabbix_agent.service ${SYSTEMD_DIR}
+        sed -i "s/Server=127.0.0.1/Server=${zabbix_server}/" ${BASE_DIR}/zabbix/etc/zabbix_agentd.conf
+        sed -i "s/ServerActive=127.0.0.1/ServerActive=${zabbix_server}/" ${BASE_DIR}/zabbix/etc/zabbix_agentd.conf
+        sed -i "s/Hostname=Zabbix server/Hostname=${hostname}/" ${BASE_DIR}/zabbix/etc/zabbix_agentd.conf
 	systemctl enable zabbix_agent.service
         systemctl start zabbix_agent.service
 fi
