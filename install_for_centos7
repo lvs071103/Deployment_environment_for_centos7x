@@ -137,11 +137,11 @@ else
 	sed -i 's/;pid = run\/php-fpm.pid/pid = run\/php-fpm.pid/' ${BASE_DIR}/php56/etc/php-fpm.conf
 	sed -i 's/;error_log = log\/php-fpm.log/error_log = log\/php-fpm.log/' ${BASE_DIR}/php56/etc/php-fpm.conf
 	sed -i 's/;daemonize = yes/daemonize = yes/' ${BASE_DIR}/php56/etc/php-fpm.conf
-	sed -i 's#listen = 127.0.0.1:9000#listen = ${BASE_DIR}/php56/var/run/php-fpm.sock#' ${BASE_DIR}/php56/etc/php-fpm.conf
+	sed -i "s#listen = 127.0.0.1:9000#listen = ${BASE_DIR}/php56/var/run/php-fpm.sock#" ${BASE_DIR}/php56/etc/php-fpm.conf
 	sed -i 's/;listen.owner = nobody/listen.owner = nobody/' ${BASE_DIR}/php56/etc/php-fpm.conf
 	sed -i 's/;listen.group = nobody/listen.group = nobody/' ${BASE_DIR}/php56/etc/php-fpm.conf
 	sed -i 's/;pm.max_requests = 500/pm.max_requests = 300/' ${BASE_DIR}/php56/etc/php-fpm.conf
-	sed '/; extension_dir = "ext"/ a\extension_dir = "${BASE_DIR}/php56/lib/php/extensions/no-debug-non-zts-20131226"\n\nzend_extension =opcache.so\nopcache.enable=1\nopcache.memory_consumption = 64\nopcache.interned_strings_buffer = 8\nopcache.max_accelerated_files = 4000\nopcache.revalidate_freq = 60\nopcache.fast_shutdown = 1\nopcache.enable_cli = 1\n' -i ${BASE_DIR}/php56/lib/php.ini
+	sed '/; extension_dir = "ext"/ a\extension_dir = "'${BASE_DIR}'/php56/lib/php/extensions/no-debug-non-zts-20131226"\n\nzend_extension =opcache.so\nopcache.enable=1\nopcache.memory_consumption = 64\nopcache.interned_strings_buffer = 8\nopcache.max_accelerated_files = 4000\nopcache.revalidate_freq = 60\nopcache.fast_shutdown = 1\nopcache.enable_cli = 1\n' -i ${BASE_DIR}/php56/lib/php.ini
 	sed -i 's#expose_php = On#expose_php = Off#' ${BASE_DIR}/php56/lib/php.ini
 	sed -i 's#short_open_tag = Off#short_open_tag = On#' ${BASE_DIR}/php56/lib/php.ini
 	sed -i 's#;cgi.fix_pathinfo=1#cgi.fix_pathinfo=0#' ${BASE_DIR}/php56/lib/php.ini
@@ -234,8 +234,8 @@ else
 		mkdir -p /data/db/redis/data
 		cp ../init/redis.service ${SYSTEMD_DIR}
 		sed -i 's/daemonize no/daemonize yes/' ${BASE_DIR}/redis/conf/redis.conf
-		sed -i 's#pidfile /var/run/redis.pid#pidfile ${BASE_DIR}/redis/run/redis_6379.pid#' ${BASE_DIR}/redis/conf/redis.conf
-		sed -i 's#logfile ""#logfile "${LOG_DIR}/redis_logs/redis.log"#' ${BASE_DIR}/redis/conf/redis.conf
+		sed -i "s#pidfile /var/run/redis.pid#pidfile ${BASE_DIR}/redis/run/redis_6379.pid#" ${BASE_DIR}/redis/conf/redis.conf
+		sed -i 's#logfile ""#logfile "'${LOG_DIR}'/redis_logs/redis.log"#' ${BASE_DIR}/redis/conf/redis.conf
 		sed -i 's#dbfilename dump.rdb#dbfilename data.rdb#' ${BASE_DIR}/redis/conf/redis.conf
 		sed -i 's#dir ./#dir /data/db/redis/data#' ${BASE_DIR}/redis/conf/redis.conf
 		if [ -s /etc/sysctl.conf ];then
