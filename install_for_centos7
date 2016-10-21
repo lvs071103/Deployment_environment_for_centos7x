@@ -135,7 +135,7 @@ else
 	cp -rf ../init/php-fpm.service ${SYSTEMD_DIR}
 	cp ${BASE_DIR}/php56/etc/php-fpm.conf.default ${BASE_DIR}/php56/etc/php-fpm.conf
 	sed -i 's/;pid = run\/php-fpm.pid/pid = run\/php-fpm.pid/' ${BASE_DIR}/php56/etc/php-fpm.conf
-	sed -i 's/;error_log = log\/php-fpm.log/error_log = log\/php-fpm.log/' ${BASE_DIR}/php56/etc/php-fpm.conf
+	sed -i 's/;error_log = log\/php-fpm.log/error_log = log\/php-fpm-error.log/' ${BASE_DIR}/php56/etc/php-fpm.conf
 	sed -i 's/;daemonize = yes/daemonize = yes/' ${BASE_DIR}/php56/etc/php-fpm.conf
 	sed -i "s#listen = 127.0.0.1:9000#listen = ${BASE_DIR}/php56/var/run/php-fpm.sock#" ${BASE_DIR}/php56/etc/php-fpm.conf
 	sed -i 's/;listen.owner = nobody/listen.owner = nobody/' ${BASE_DIR}/php56/etc/php-fpm.conf
