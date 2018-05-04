@@ -1,0 +1,108 @@
+#!/bin/bash
+
+check_user_exists()
+{
+    if id "$1" > /dev/null 2>&1; then
+        echo "$1 exists."
+    else
+        useradd -M -s /sbin/nologin $1
+    fi
+}
+
+if [ "$#" -lt 1 ];then
+    echo "Usage: $0 <path>"
+    exit 1
+fi
+
+dirName=$(echo $1 | sed 's/\/$//g')
+
+if [ ! -d "${dirName}" ];then
+   read -p "directory not found create it [Y|N]: " confirm
+   if [ ${confirm} == 'Y' ] || [ ${confirm} == 'y' ] || [ ${confirm} == 'yes' ];then
+       mkdir -p ${dirName}
+   fi
+else
+   echo "MySQL will be install in ${dirName}"
+fi
+
+if [ "${UID}" -ne 0 ];then
+    echo "${UID}"
+    echo "not root user"
+    exit 1
+fi
+
+if ! test -e mysql-5.7.22.tar.gz;then
+    wget https://cdn.mysql.com//Downloads/MySQL-5.7/mysql-5.7.22.tar.gz
+fi
+
+if ! test -e boost_1_59_0.tar.gz;then
+    wget https://sourceforge.mirrorservice.org/b/bo/boost/boost/1.59.0/boost_1_59_0.tar.gz
+fi
+
+if test -d "${dirName}"/boost_1_59_0;then
+    :
+else
+    tar zxf boost_1_59_0.tar.gz -C "${dirName}"
+fi
+
+
+if test -d ${dirName}/mysql; then
+    echo "${dirName}/mysql is not empty!"
+    exit 1
+else
+    if ! test -d ./mysql-5.7.22;then
+        tar zxvf mysql-5.7.22.tar.gz
+    fi
+    cd mysql-5.7.22
+    cmake \
+    -DCMAKE_INSTALL_PREFIX=${dirName}/mysql \
+    -DMYSQL_DATADIR=/data/db/mysql/var \
+    -DSYSCONFDIR=/etc \
+    -DMYSQL_TCP_PORT=3306 \
+    -DDEFAULT_CHARSET=utf8 \
+    -DDEFAULT_COLLATION=utf8_general_ci \
+    -DDEFAULT_COLLATION=utf8_general_ci \
+    -DDOWNLOAD_BOOST=1 \
+    -DWITH_BOOST=${dirName}/boost_1_59_0
+    if [ $? -eq 0 ];then
+        make -j2 && make install
+    else
+        exit 1
+    fi
+fi
+
+check_user_exists mysql
+
+cat > /etc/profile.d/mysql.sh << EOF
+export "MYSQL_HOME=${dirName}/mysql"
+export "PATH=$MYSQL_HOME/bin:$PATH"
+EOF
+
+echo "${dirName}/mysql/lib" > /etc/ld.so.conf.d/mysql.conf
+
+cat > /usr/lib/systemd/system/mysqld.service << EOF
+[Unit]
+Description=MySQL Community Server
+After=network.target
+After=syslog.target
+[Install]
+WantedBy=multi-user.target
+[Service]
+User=mysql
+Group=mysql
+PIDFile=/data/db/mysql/var/mysql.pid
+PermissionsStartOnly=true
+ExecStart=${dirName}/mysql/bin/mysqld --defaults-file=/etc/my.cnf
+LimitNOFILE=65535
+TimeoutSec=600
+
+Restart=always
+RestartPreventExitStatus=1
+PrivateTmp=false
+EOF
+
+
+echo "mysql install success!"
+echo "execute mysql init scripts!"
+echo "done!"
+exit 0
