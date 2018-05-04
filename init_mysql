@@ -1,0 +1,66 @@
+#!/bin/bash
+
+if [ "$#" -lt 1 ];then
+    echo "Usage: $0 <path>"
+    exit 1
+fi
+
+dirName=$(echo $1 | sed 's/\/$//g')
+
+if [ "${UID}" -ne 0 ];then
+    echo "${UID}"
+    echo "not root user"
+    exit 1
+fi
+
+if [ -z $(cat /etc/passwd | grep mysql) ];then
+    useradd -M -s /sbin/nologin mysql
+else
+    :
+fi
+
+if test -d /data;then
+    mkdir -p /data/db/{mysql,mysql_binlog}
+    mkdir -p /data/db/mysql/var
+    mkdir -p /data/db/mysql/logs
+    chown -R mysql. /data/db/mysql
+    chown -R mysql. /data/db/mysql_binlog
+else
+    echo "disk is not mount"
+    exit 1
+fi
+
+if ! test -f /etc/profile.d/mysql.sh;then
+    cat > /etc/profile.d/mysql.sh <<EOF 
+export MYSQL_HOME=/usr/local/mysql
+export PATH=$MYSQL_HOME/bin:$PATH
+EOF
+fi
+
+if ! test -f /etc/ld.so.conf.d/mysql.conf;then
+    cat > /etc/ld.so.conf.d/mysql.conf << EOF
+/usr/local/mysql/lib
+EOF
+fi
+
+# init mysql
+if test -d /data/db/mysql/var;then
+    ${dirName}/bin/mysqld  \
+    --initialize-insecure --user=mysql \
+    --basedir=${dirName} \
+    --datadir=/data/db/mysql/var \
+    --explicit_defaults_for_timestamp
+    if [ $? -eq 0 ];then
+        echo "init done!"
+    else
+        exit 1
+    fi
+else
+    echo "not found var directory!"
+    exit 1
+fi
+
+/usr/bin/cp -rf my.cnf /etc/my.cnf
+
+echo "done!"
+exit 0
