@@ -1,0 +1,66 @@
+#!/bin/bash
+
+
+BASEDIR=/usr/local/lnmp
+SUBDIR=zabbix
+ZABBIX_SERVER='10.163.40.59'
+HOSTNAME=$(hostname)
+
+check_user_exists()
+{
+    if id "$1" > /dev/null 2>&1; then
+        echo "$1 exists."
+    else
+        useradd -M -s /sbin/nologin $1
+    fi
+}
+
+replace_conf_variables()
+{
+    target_file=${BASEDIR}/${SUBDIR}/etc/zabbix_agentd.conf
+    sed -i "s/Server=127.0.0.1/Server=${ZABBIX_SERVER}/g" ${target_file}
+    sed -i "s/ServerActive=127.0.0.1/ServerActive=${ZABBIX_SERVER}/g" ${target_file}
+    sed -i "s/Hostname=Zabbix\ server/Hostname=${HOSTNAME}/g" ${target_file}
+}
+
+if [ ! -d ${BASEDIR} ];then
+    mkdir -p ${BASEDIR}
+fi
+
+if [ -d ${BASEDIR}/${SUBDIR} ];then
+    echo "Directory already exist!"
+    exit 1
+else
+    if ! test -e zabbix-3.0.4.tar.gz;then
+        wget https://jaist.dl.sourceforge.net/project/zabbix/ZABBIX%20Latest%20Stable/3.0.4/zabbix-3.0.4.tar.gz
+    fi
+
+    tar zxf zabbix-3.0.4.tar.gz
+    cd zabbix-3.0.4
+    ./configure --prefix=${BASEDIR}/${SUBDIR} --enable-agent
+    if [ $? -eq 0 ];then
+        make && make install
+    else
+        exit 1
+    fi
+fi
+
+check_user_exists zabbix
+replace_conf_variables
+
+cat > /usr/lib/systemd/system/zabbix_agentd.service << EOF
+[Unit]
+Description=Zabbix Agent
+After=syslog.target network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/local/lnmp/zabbix/sbin/zabbix_agentd
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "Done!"
+exit 0
