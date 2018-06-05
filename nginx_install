@@ -5,15 +5,14 @@ LOG_DIR='/data/logs'
 LOGROTATE_DIR='/etc/logrotate.d'
 SYSTEMD_DIR='/usr/lib/systemd/system'
 
-nginx_install(){
-
+nginx_install()
+{
     if [ -d ${BASE_DIR}/nginx ];then
     	 echo "nginx directory is exist."
     	 exit 0
     else
-        gcc -v
         if [ ! -f ./nginx-1.12.2.tar.gz ];then
-        	wget http://nginx.org/download/nginx-1.12.2.tar.gz
+            wget http://nginx.org/download/nginx-1.12.2.tar.gz
         fi
         tar zxvf nginx-1.12.2.tar.gz
         cd nginx-1.12.2
@@ -36,8 +35,122 @@ nginx_install
 
 modify_conf(){
 mv ${BASE_DIR}/nginx/conf/nginx.conf ${BASE_DIR}/nginx/conf/nginx.conf.old
-cp -rf ./nginx.conf ${BASE_DIR}/nginx/conf/nginx.conf
-cp -rf ./vhosts ${BASE_DIR}/nginx/conf/
+cat > ${BASE_DIR}/nginx/conf/nginx.conf << EOF
+user                  nobody nobody;
+worker_processes      auto;
+#worker_cpu_affinity 00000001 00000010 00000100 00001000 00010000 00100000 01000000 10000000;
+
+
+error_log             /data/logs/nginx_logs/error.log;
+pid                   /var/run/nginx.pid;
+worker_rlimit_nofile  65535;
+
+events {
+        # use [ kqueue | rtsig | epoll | /dev/poll | select | poll ];
+        use epoll;
+
+        # web server   : max_clients = worker_processes * worker_connections
+        # proxy server : max_clients = worker_processes * worker_connections / 4
+        worker_connections  65535;
+}
+
+http {
+	limit_req_zone $binary_remote_addr zone=req_perip:50m rate=1r/s;
+        include                    mime.types;
+        default_type               application/octet-stream;
+
+        log_format      main       '$remote_addr - $remote_user [$time_local] "$request" '
+                                   '$status $body_bytes_sent "$http_referer" '
+                                   '"$http_user_agent" "$http_x_forwarded_for"';
+
+        #access_log                 logs/access.log  main;
+
+        sendfile                    on;
+        tcp_nopush                  on;
+	fastcgi_intercept_errors    on;
+	server_tokens			off;
+
+        keepalive_timeout           65;
+
+        gzip                        on;
+        gzip_comp_level             5;
+        gzip_http_version           1.0;
+        gzip_min_length             1024;
+        gzip_buffers                4  8k;
+        gzip_types                  text/plain application/x-javascript text/css application/xml;
+
+        client_max_body_size 50M;
+        client_header_buffer_size   8k;
+        large_client_header_buffers 4 16k;
+
+        fastcgi_connect_timeout     1000;
+        fastcgi_send_timeout        1000;
+        fastcgi_read_timeout        1000;
+        fastcgi_buffers             32 512k;
+        fastcgi_busy_buffers_size   512k;
+        fastcgi_buffer_size         512k;
+        # The following includes are specified for virtual hosts
+	include vhosts/*.conf;
+}
+EOF
+
+if ! test -d ${BASE_DIR}/nginx/conf/vhosts;then
+    mkdir -p ${BASE_DIR}/nginx/conf/vhosts
+fi
+
+cat > ${BASE_DIR}/nginx/conf/vhosts/vhost.conf.template << EOF
+server {
+        listen       80 default;
+
+        root   /data/wwwroot/;
+        index  index.php index.htm index.html index.xml;
+
+        charset utf-8;
+	
+	if (-d $request_filename)
+	{
+		rewrite ^/(.*)([^/])$ http://$host/$1$2/ permanent;
+	}	
+
+        access_log  /data/logs/nginx_logs/vhost_access.log  main;
+        
+	error_page   500 502 503 504  /50x.html;
+
+        location = /50x.html {
+            root   html;
+        }
+	
+	location ~ .+\.(php|do)?$
+	{
+		fastcgi_pass          unix:/usr/local/lnmp/php56/var/run/php-fpm.sock;
+		fastcgi_index         index.php;
+		include               fastcgi_params;
+		fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+	}
+
+        # deny access to .htaccess files, if Apache's document root
+        #concurs with nginx's one
+	
+	location ~ .*\.(gif|jpg|jpeg|png|bmp|swf)$
+	{
+	expires      30d;
+	}
+	location ~ .*\.(js|css)?$
+	{
+	expires      1h;
+	}
+	location ~ .+\.(dat|sql|tgz|gz|tar|zip)?$
+        {
+        deny all;
+        }		
+        location ~ /\.ht {
+            deny  all;
+        }
+        location ~ .*.(svn|git|cvs) {
+            deny all;
+        }
+    }
+EOF
 
 cat > ${SYSTEMD_DIR}/nginx.service << EOF
 [Unit]
@@ -74,8 +187,6 @@ EOF
 if [ ! -d ${LOG_DIR}/nginx_logs ];then
     mkdir -p ${LOG_DIR}/nginx_logs
 fi
-
-systemctl start nginx.service
-
 }
+
 modify_conf
