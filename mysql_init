@@ -32,14 +32,14 @@ fi
 
 if ! test -f /etc/profile.d/mysql.sh;then
     cat > /etc/profile.d/mysql.sh <<EOF 
-export MYSQL_HOME=/usr/local/mysql
-export PATH=$MYSQL_HOME/bin:$PATH
+export MYSQL_HOME=/usr/local/lnmp/mysql
+export PATH=\$MYSQL_HOME/bin:\$PATH
 EOF
 fi
 
 if ! test -f /etc/ld.so.conf.d/mysql.conf;then
     cat > /etc/ld.so.conf.d/mysql.conf << EOF
-/usr/local/mysql/lib
+/usr/local/lnmp/mysql/lib
 EOF
 fi
 
@@ -60,7 +60,75 @@ else
     exit 1
 fi
 
-/usr/bin/cp -rf my.cnf /etc/my.cnf
+cat > /etc/my.cnf << EOF
+[mysql]
+
+# CLIENT #
+port                           = 3306
+socket                         = /data/db/mysql/var/mysql.sock
+
+[mysqld]
+
+# GENERAL #
+user                           = mysql
+default-storage-engine         = InnoDB
+socket                         = /data/db/mysql/var/mysql.sock
+pid-file                       = /data/db/mysql/var/mysql.pid
+explicit_defaults_for_timestamp = 1
+
+# MyISAM #
+key-buffer-size                = 64M
+# myisam-recover                 = FORCE,BACKUP
+
+# SAFETY #
+max-allowed-packet             = 32M
+max-connect-errors             = 1000000
+skip-name-resolve
+sql-mode                       = STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_AUTO_VALUE_ON_ZERO,NO_ENGINE_SUBSTITUTION,NO_ZERO_DATE,NO_ZERO_IN_DATE
+sysdate-is-now                 = 1
+innodb                         = FORCE
+
+# DATA STORAGE #
+datadir                        = /data/db/mysql/var/
+
+# BINARY LOGGING #
+log-bin                        = /data/db/mysql_binlog/mysql-bin
+expire-logs-days               = 7
+sync-binlog                    = 1
+
+# Gtid replication #
+server-id                      = 1
+binlog-format                  = ROW
+
+# CACHES AND LIMITS #
+tmp-table-size                 = 32M
+max-heap-table-size            = 32M
+query-cache-type               = 0
+query-cache-size               = 0
+max-connections                = 2000
+thread-cache-size              = 100
+open-files-limit               = 65535
+table-definition-cache         = 4096
+table-open-cache               = 10240
+
+# INNODB #
+innodb-flush-method            = O_DIRECT
+innodb-log-files-in-group      = 2
+innodb-log-file-size           = 256M
+innodb-flush-log-at-trx-commit = 1
+innodb-file-per-table          = 1
+innodb-buffer-pool-size        = 2G
+
+# LOGGING #
+log-error                      = /data/db/mysql/logs/mysql-error.log
+log-queries-not-using-indexes  = 0
+slow-query-log                 = 1
+long-query-time                = 1
+slow-query-log-file            = /data/db/mysql/logs/mysql-slow.log
+
+[mysqld_safe]
+malloc-lib=/usr/lib64/libjemalloc.so.1
+EOF
 
 echo "done!"
 exit 0
