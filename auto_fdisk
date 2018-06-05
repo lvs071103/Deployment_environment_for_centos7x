@@ -1,0 +1,29 @@
+#!/bin/bash
+
+fdisk /dev/sdb <<'EOF'
+n
+p
+1
+
+
+w
+EOF
+mkfs.xfs /dev/sdb1
+
+if ! test -d /data;then
+    mkdir /data
+fi
+
+mount -t xfs /dev/sdb1 /data
+sdb1_uuid=$(blkid -o value -s UUID /dev/sdb1)
+sed -i '$a\UUID='$sdb1_uuid'       /data   xfs     defaults,noatime        0 0' /etc/fstab
+
+# add swap
+if ! test -f /data/swap ;then
+  dd if=/dev/zero of=/data/swap bs=1024 count=8192000
+  mkswap -f /data/swap
+  chmod 0600 /data/swap
+  sed -i '$a\/data/swap       swap    swap    defaults        0 0' /etc/fstab
+fi
+
+exit 0
