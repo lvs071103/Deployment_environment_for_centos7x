@@ -33,7 +33,8 @@ nginx_install()
 
 nginx_install
 
-modify_conf(){
+modify_conf()
+{
 mv ${BASE_DIR}/nginx/conf/nginx.conf ${BASE_DIR}/nginx/conf/nginx.conf.old
 cat > ${BASE_DIR}/nginx/conf/nginx.conf << EOF
 user                  nobody nobody;
