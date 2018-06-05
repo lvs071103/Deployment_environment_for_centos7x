@@ -1,0 +1,41 @@
+#!/bin/bash
+
+yum update iptables -y
+yum install iptables-services -y
+
+
+CMD=/sbin/iptables
+
+#清除配置
+${CMD} -P INPUT ACCEPT
+${CMD} -F
+${CMD} -X
+
+#开放本地和Ping
+${CMD} -A INPUT -i lo -j ACCEPT
+${CMD} -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+${CMD} -A INPUT -p icmp -j ACCEPT
+
+#配置内网白名单
+${CMD} -A INPUT -s 10.240.0.0/16 -j ACCEPT
+
+#配置外网白名单
+#${CMD} -A INPUT -s 58.246.125.246 -j ACCEPT
+#${CMD} -A INPUT -s 101.81.60.68 -j ACCEPT
+
+#控制端口
+${CMD} -A INPUT -s 116.226.27.191 -j ACCEPT
+${CMD} -A INPUT -s 101.81.54.216 -j ACCEPT
+${CMD} -A INPUT -s 116.226.56.116 -j ACCEPT
+${CMD} -A INPUT -s 120.132.102.128 -p tcp --dport 22 -j ACCEPT
+${CMD} -A INPUT -p tcp --dport 80 -j ACCEPT
+${CMD} -A INPUT -p tcp --dport 443 -j ACCEPT
+
+#拒绝其他
+${CMD} -A INPUT -j DROP
+${CMD} -A FORWARD -j DROP
+
+#开放出口
+${CMD} -A OUTPUT -j ACCEPT
+
+service iptables save
