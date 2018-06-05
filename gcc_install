@@ -1,0 +1,29 @@
+#!/bin/bash
+
+if [ ! -e ./gcc-4.9.4.tar.gz ];then
+    wget https://ftp.gnu.org/gnu/gcc/gcc-4.9.4/gcc-4.9.4.tar.gz
+    if [ $? -ne 0 ];then
+        exit 1
+    fi
+fi
+
+# install
+if [ ! -d gcc-4.9.4 ];then
+    tar zxvf gcc-4.9.4.tar.gz
+fi
+
+cd gcc-4.9.4
+./contrib/download_prerequisites
+if [ $? -eq 0 ];then
+    if ! test -d gcc-build;then
+        mkdir gcc-build
+    fi
+    cd gcc-build
+    ../configure --enable-checking=release --enable-languages=c,c++ --disable-multilib
+    if [ $? -eq 0 ];then
+        make -j8 && make install
+    fi
+fi
+
+echo "Done!"
+exit 0
