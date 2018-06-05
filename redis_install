@@ -1,0 +1,70 @@
+#!/bin/bash
+
+BASE_DIR='/usr/local/lnmp'
+LOG_DIR='/data/logs/redis_logs'
+
+if [ ! -e ./redis-4.0.9.tar.gz ];then
+    wget http://download.redis.io/releases/redis-4.0.9.tar.gz
+    if [ $? -ne 0 ];then
+        exit 1
+    fi
+fi
+
+if test -d ${BASE_DIR}/redis;then
+    echo "Directory alread exist!"
+    exit 0
+fi
+
+tar zxf redis-4.0.9.tar.gz
+cd redis-4.0.9
+
+make
+make PREFIX=${BASE_DIR}/redis install
+if [ $? -eq 0 ];then
+    if ! test -d ${BASE_DIR}/redis/etc; then
+        mkdir ${BASE_DIR}/redis/etc
+    fi
+
+    /bin/cp -rf redis.conf ${BASE_DIR}/redis/etc/
+    sed -i 's/daemonize no/daemonize yes/' ${BASE_DIR}/redis/etc/redis.conf
+    sed -i "s#pidfile /var/run/redis.pid#pidfile ${BASE_DIR}/redis/run/redis_6379.pid#" ${BASE_DIR}/redis/etc/redis.conf
+    sed -i 's#logfile ""#logfile "'${LOG_DIR}'/redis_logs/redis.log"#' ${BASE_DIR}/redis/etc/redis.conf
+    sed -i 's#dbfilename dump.rdb#dbfilename data.rdb#' ${BASE_DIR}/redis/etc/redis.conf
+    sed -i 's#dir ./#dir /data/db/redis/data#' ${BASE_DIR}/redis/etc/redis.conf
+    if [ -z $(cat /etc/rc.d/rc.local | grep "transparent_hugepage") ];then
+        sed -i '$/a\if test -f /sys/kernel/mm/transparent_hugepage/enabled; then \n    echo never > /sys/kernel/mm/transparent_hugepage/enabled\nfi\nif test -f /sys/kernel/mm/transparent_hugepage/defrag; then\n    echo never > /sys/kernel/mm/transparent_hugepage/defrag\nfi\n' /etc/rc.d/rc.local
+    fi
+    chmod a+x /etc/rc.d/rc.local
+
+    if [ -z $(sysctl -p | grep "vm.overcommit_memory") ];then
+        sed -i '$a\vm.overcommit_memory=1' /etc/sysctl.conf
+    fi
+
+    if [ -z $(sysctl -p | grep "net.core.somaxconn") ];then
+       sed -i '$a\net.core.somaxconn=10000' /etc/sysctl.conf
+    fi
+fi
+
+cat > /usr/lib/systemd/system/redis_6379.service << EOF
+[Unit]
+Description=Redis persistent key-value database
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=${BASE_DIR}/redis/bin/redis-server ${BASE_DIR}/redis/etc/redis.conf
+ExecReload=/bin/kill -USR2 $MAINPID
+ExecStop=${BASE_DIR}/redis/bin/redis-cli shutdown
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat > /etc/profile.d/redis.sh << EOF
+export REDIS_HOME=${BASE_DIR}/redis
+export PATH=\$REDIS_HOME/bin:$PATH
+EOF
+
+echo "Done!"
+exit 0
