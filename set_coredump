@@ -1,0 +1,11 @@
+#!/bin/bash
+
+if [ ! -e /etc/profile.d/coredump.sh ];then
+    cat > /etc/profile.d/coredump.sh << EOF
+ulimit -S -c unlimited > /dev/null 2>&1
+EOF
+fi
+source /etc/profile.d/coredump.sh
+
+echo "Done!"
+exit 0
