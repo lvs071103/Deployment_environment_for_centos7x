@@ -1,0 +1,7 @@
+#!/bin/bash
+
+mkdir -p /data/db/redis/data
+mkdir -p /data/logs/redis_logs
+
+echo "Done!"
+exit 0
