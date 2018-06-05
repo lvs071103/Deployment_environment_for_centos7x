@@ -1,0 +1,18 @@
+#!/bin/bash
+
+if [ ! -e ./gdb-7.12.tar.gz ];then
+    http://ftp.gnu.org/gnu/gdb/gdb-7.12.tar.gz
+fi
+
+if [ ! -d gdb-7.12 ];then
+    tar zxvf gdb-7.12.tar.gz
+fi
+
+cd gdb-7.12
+./configure
+if [ $? -eq 0 ];then
+    make && make install
+fi
+
+echo "Done!"
+exit 0
