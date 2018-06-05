@@ -1,0 +1,81 @@
+#！/bin/bash
+
+BASE_DIR='/usr/local/lnmp'
+LOG_DIR='/data/logs'
+LOGROTATE_DIR='/etc/logrotate.d'
+SYSTEMD_DIR='/usr/lib/systemd/system'
+
+nginx_install(){
+
+    if [ -d ${BASE_DIR}/nginx ];then
+    	 echo "nginx directory is exist."
+    	 exit 0
+    else
+        gcc -v
+        if [ ! -f ./nginx-1.12.2.tar.gz ];then
+        	wget http://nginx.org/download/nginx-1.12.2.tar.gz
+        fi
+        tar zxvf nginx-1.12.2.tar.gz
+        cd nginx-1.12.2
+        ./configure --prefix=${BASE_DIR}/nginx --user=nobody \
+        --group=nobody --with-ld-opt=-ljemalloc --with-http_ssl_module \
+        --with-http_addition_module --with-http_sub_module --with-http_dav_module \
+        --with-http_flv_module --with-http_gzip_static_module --with-http_stub_status_module \
+        --with-mail --with-mail_ssl_module --with-http_geoip_module \
+        --with-http_realip_module
+        
+        if [ "$?" -eq 0 ];then
+        	make && make install
+        else
+        	exit 1
+        fi
+    fi    
+}
+
+nginx_install
+
+modify_conf(){
+mv ${BASE_DIR}/nginx/conf/nginx.conf ${BASE_DIR}/nginx/conf/nginx.conf.old
+cp -rf ./nginx.conf ${BASE_DIR}/nginx/conf/nginx.conf
+cp -rf ./vhosts ${BASE_DIR}/nginx/conf/
+
+cat > ${SYSTEMD_DIR}/nginx.service << EOF
+[Unit]
+Description=The NGINX HTTP and reverse proxy server
+After=syslog.target network.target remote-fs.target nss-lookup.target
+
+[Service]
+Type=forking
+PIDFile=/var/run/nginx.pid
+ExecStartPre=${BASE_DIR}/nginx/sbin/nginx -t
+ExecStart=${BASE_DIR}/nginx/sbin/nginx
+ExecReload=/bin/kill -s HUP \$MAINPID
+ExecStop=/bin/kill -s QUIT \$MAINPID
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+	
+cat > ${LOGROTATE_DIR}/nginx << EOF
+${LOG_DIR}/nginx_logs/*.log {
+daily
+rotate 7
+missingok
+sharedscripts
+postrotate
+    if [ -f /var/run/nginx.pid ]; then
+        kill -USR1 \`cat /var/run/nginx.pid\`
+    fi
+endscript
+}
+EOF
+
+if [ ! -d ${LOG_DIR}/nginx_logs ];then
+    mkdir -p ${LOG_DIR}/nginx_logs
+fi
+
+systemctl start nginx.service
+
+}
+modify_conf
