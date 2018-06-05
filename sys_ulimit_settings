@@ -1,0 +1,48 @@
+#!/bin/bash
+
+if test ! -f /etc/security/limits.conf.bak; then
+    cp -rf /etc/security/limits.conf /etc/security/limits.conf.bak
+fi
+
+if [[ -z $(cat /etc/security/limits.conf | grep "*         hard    nofile      100000") ]];then
+    sed -i '$a\*         hard    nofile      100000' /etc/security/limits.conf
+fi
+if [[ -z $(cat /etc/security/limits.conf | grep "*         soft    nofile      100000") ]];then
+    sed -i '$a\*         soft    nofile      100000' /etc/security/limits.conf
+fi
+
+if [[ -z $(cat /etc/security/limits.conf | grep "root      hard    nofile      100000") ]];then
+    sed -i '$a\root      hard    nofile      100000' /etc/security/limits.conf
+fi
+
+if [[ -z $(cat /etc/security/limits.conf | grep "root      soft    nofile      100000") ]];then
+    sed -i '$a\root      soft    nofile      100000' /etc/security/limits.conf
+fi
+
+if [[ -z $(cat /etc/security/limits.conf | grep "*         hard    nproc       100000") ]];then
+    sed -i '$a\*         hard    nproc       100000' /etc/security/limits.conf
+fi
+
+if [[ -z $(cat /etc/security/limits.conf | grep "*         soft    nproc       100000") ]];then
+    sed -i '$a\*         soft    nproc       100000' /etc/security/limits.conf
+fi
+
+if [[ -z $(cat /etc/security/limits.conf | grep "root      hard    nproc       100000") ]];then
+    sed -i '$a\root      hard    nproc       100000' /etc/security/limits.conf
+fi
+
+if [[ -z $(cat /etc/security/limits.conf | grep "root      soft    nproc       100000") ]];then
+    sed -i '$a\root      soft    nproc       100000' /etc/security/limits.conf
+fi
+
+if ! test -f /etc/security/limits.d/80-nofile.conf;then
+    echo "# Added by Jack.Z"  > /etc/security/limits.d/80-nofile.conf
+fi
+
+if [[ -z $(cat /etc/security/limits.d/80-nofile.conf | grep "*	hard	nofile	1000000") ]];then
+    sed -i '$a\*	hard	nofile	1000000' /etc/security/limits.d/80-nofile.conf
+fi
+
+
+echo "Done!"
+exit 0
