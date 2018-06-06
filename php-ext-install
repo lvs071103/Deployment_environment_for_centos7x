@@ -2,6 +2,7 @@
 
 deploy_dir='/usr/local/lnmp'
 extension_dir='/usr/local/lnmp/php71/lib/php/extensions/no-debug-non-zts-20160303/'
+FILE="${deploy_dir}/php71/lib/php.ini"
 
 do_install()
 {
@@ -119,4 +120,22 @@ do_install()
     fi
 }
 
+do_check_extension()
+{
+    STRING=$1
+    if [[ -z $(grep "$STRING" "$FILE") ]]; then
+        sed -i '/^extension_dir/a\['"$STRING"']\nextension = '"$STRING\.so"'' ${FILE}
+    else
+        :
+    fi
+}
+
 do_install
+array=(apcu igbinary memcached mongodb opcache redis)
+for item in ${array[@]};do
+    do_check_extension ${item}
+done
+
+
+echo "Done!"
+exit 0
