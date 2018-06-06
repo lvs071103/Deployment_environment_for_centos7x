@@ -103,9 +103,23 @@ if [ $? -eq 0 ];then
     sed -i 's#expose_php = On#expose_php = Off#' ${deploy_dir}/php71/lib/php.ini
     sed -i 's#short_open_tag = Off#short_open_tag = On#' ${deploy_dir}/php71/lib/php.ini
     sed -i 's#;cgi.fix_pathinfo=1#cgi.fix_pathinfo=0#' ${deploy_dir}/php71/lib/php.ini
-    echo "Done!"
-    exit 0
 else
     exit 1
 fi
 
+cat > ${service}/php-fpm.service << EOF
+[Unit]
+Description=The PHP 7.1 FastCGI Process Manager
+After=network.target
+After=syslog.target
+
+[Service]
+Type=simple
+PIDFile=${deploy_dir}/php71/var/run/php-fpm.pid
+ExecStart=${deploy_dir}/php71/sbin/php-fpm --nodaemonize --fpm-config ${deploy_dir}/php71/etc/php-fpm.conf
+ExecReload=/bin/kill -USR2 \$MAINPID
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
