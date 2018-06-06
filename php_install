@@ -1,0 +1,111 @@
+#!/bin/bash
+
+tool_path='/home/tools'
+deploy_dir="/usr/local/lnmp"
+service="/usr/lib/systemd/system"
+profile_dir="/etc/profile.d"
+
+
+do_check_exists() 
+{
+    string=$1
+    if rpm -qa | grep -q ${string}; then
+        return 33
+    else
+        return 34
+    fi
+}
+
+dep_list=(libjpeg libjpeg-devel libpng libpng-devel freetype freetype-devel libxml2 libxml2-devel curl curl-devel libxslt-devel openldap-devel openldap-clients openldap-servers zlib zlib-devel gd-devel mysql-devel libmcrypt libmcrypt-devel mcrypt bzip2 bzip2-devel)
+
+for item in ${dep_list[@]};do
+    do_check_exists "${item}"
+    res=$?
+    if [ "${res}" -eq 34 ];then
+         yum install ${item} -y
+    else
+        :
+    fi
+done
+
+if test -d ${deploy_dir}/php71; then
+    echo "Directory already exist!"
+    exit 1
+fi
+
+if [ ! -e ./php-7.1.7.tar.bz2 ];then
+    wget http://cn2.php.net/distributions/php-7.1.7.tar.bz2
+fi
+
+if ! test -d ./php-7.1.7; then
+    tar xjf php-7.1.7.tar.bz2
+fi
+if [[ -z $(find /usr/lib/ -maxdepath 1 -name "libldap*") ]];then
+    ln -s /usr/lib64/libldap* /usr/lib/
+fi
+if [[ -z $(find /usr/lib/ -maxdepth 1 -name "libexpat*") ]];then
+    ln -s /usr/lib64/libexpat.* /usr/lib/
+fi
+if [[ -z $(find /lib/ -maxdepth 1 -name "libexpat*") ]];then
+    ln -s /lib64/libexpat.* /lib/
+fi
+if [[ -z $(find /usr/lib/ -name "liblber-2.4.so.2") ]];then
+    ln -s /usr/lib64/liblber-2.4.so.2 /usr/lib/
+fi
+if [[ -z $(find /usr/lib/ -name "liblber.so") ]];then
+    ln -s /usr/lib64/liblber.so /usr/lib/
+fi
+
+cd php-7.1.7
+
+./configure --prefix=${deploy_dir}/php71 \
+    --with-zlib --with-mysqli=mysqlnd \
+    --with-pdo-mysql=mysqlnd --with-jpeg-dir --with-png-dir --with-freetype-dir \
+    --with-libexpat-dir --with-libxml-dir --with-gd --with-openssl --with-iconv-dir \
+    --with-gettext --with-curl --with-mhash --enable-pcntl --with-mcrypt --with-bz2 \
+    --with-ldap --enable-ftp --with-ldap-sasl --enable-gd-native-ttf \
+    --enable-mbstring=all --enable-xml  --enable-exif --enable-mbregex \
+    --enable-zip --enable-soap --enable-sockets --enable-bcmath --enable-shmop \
+    --enable-sysvsem --enable-sysvshm --enable-sysvmsg \
+    --disable-xmlreader --disable-debug --disable-rpath --without-pear --disable-phar \
+    --enable-fpm --with-fpm-user=nobody --with-fpm-group=nobody --enable-opcache
+
+if [ "$?" -ne 0 ];then
+    exit 1
+fi
+
+make
+if [ "$?" -ne 0 ];then
+    exit 1
+fi
+
+make install
+
+if [ $? -eq 0 ];then
+    if ! test -f ${deploy_dir}/php71/etc/php-fpm.conf; then
+        /bin/cp -rf ${deploy_dir}/php71/etc/php-fpm.conf.default ${deploy_dir}/php71/etc/php-fpm.conf
+    fi
+
+    if ! test -f ${deploy_dir}/php71/etc/php-fpm.d/www.conf; then
+        /bin/cp -rf ${deploy_dir}/php71/etc/php-fpm.d/www.conf.default ${deploy_dir}/php71/etc/php-fpm.d/www.conf
+    fi
+    if ! test -f ${deploy_dir}/php71/lib/php.ini; then
+        /bin/cp -rf php.ini-production ${deploy_dir}/php71/lib/php.ini
+    fi
+    sed -i 's/;pid = run\/php-fpm.pid/pid = run\/php-fpm.pid/' ${deploy_dir}/php71/etc/php-fpm.conf
+    sed -i 's/;error_log = log\/php-fpm.log/error_log = log\/php-fpm-error.log/' ${deploy_dir}/php71/etc/php-fpm.conf
+    sed -i 's/;daemonize = yes/daemonize = yes/' ${deploy_dir}/php71/etc/php-fpm.conf
+    sed -i "s#listen = 127.0.0.1:9000#listen = ${deploy_dir}/php71/var/run/php-fpm.sock#" ${deploy_dir}/php71/etc/www.conf
+    sed -i 's/;listen.owner = nobody/listen.owner = nobody/' ${deploy_dir}/php71/etc/php-fpm.d/www.conf
+    sed -i 's/;listen.group = nobody/listen.group = nobody/' ${deploy_dir}/php71/etc/php-fpm.d/www.conf
+    sed -i 's/;pm.max_requests = 500/pm.max_requests = 300/' ${deploy_dir}/php71/etc/php-fpm.d/www.conf
+    sed '/; extension_dir = "ext"/ a\extension_dir = "'${deploy_dir}'/php71/lib/php/extensions/no-debug-non-zts-20160303"\n\nzend_extension =opcache.so\nopcache.enable=1\nopcache.memory_consumption = 64\nopcache.interned_strings_buffer = 8\nopcache.max_accelerated_files = 4000\nopcache.revalidate_freq = 60\nopcache.fast_shutdown = 1\nopcache.enable_cli = 1\n' -i ${deploy_dir}/php71/lib/php.ini
+    sed -i 's#expose_php = On#expose_php = Off#' ${deploy_dir}/php71/lib/php.ini
+    sed -i 's#short_open_tag = Off#short_open_tag = On#' ${deploy_dir}/php71/lib/php.ini
+    sed -i 's#;cgi.fix_pathinfo=1#cgi.fix_pathinfo=0#' ${deploy_dir}/php71/lib/php.ini
+    echo "Done!"
+    exit 0
+else
+    exit 1
+fi
+
