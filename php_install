@@ -40,7 +40,7 @@ fi
 if ! test -d ./php-7.1.7; then
     tar xjf php-7.1.7.tar.bz2
 fi
-if [[ -z $(find /usr/lib/ -maxdepath 1 -name "libldap*") ]];then
+if [[ -z $(find /usr/lib/ -maxdepth 1 -name "libldap*") ]];then
     ln -s /usr/lib64/libldap* /usr/lib/
 fi
 if [[ -z $(find /usr/lib/ -maxdepth 1 -name "libexpat*") ]];then
@@ -123,3 +123,6 @@ Restart=always
 [Install]
 WantedBy=multi-user.target
 EOF
+
+echo "Done!"
+exit 0
