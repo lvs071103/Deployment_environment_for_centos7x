@@ -1,0 +1,67 @@
+#!/bin/bash
+
+BASE_DIR='/usr/local/lnmp'
+
+check_user_exists()
+{
+    if id "$1" > /dev/null 2>&1; then
+        echo "$1 exists."
+    else
+        useradd -M -s /sbin/nologin $1
+    fi
+}
+
+if [ -d ${BASE_DIR}/memcached ];then
+   echo "memcached directory is exist."
+   exit 0
+else
+    if test -f memcached-1.5.8.tar.gz; then
+        wget http://www.memcached.org/files/memcached-1.5.8.tar.gz
+    fi
+    tar zxf memcached-1.5.8.tar.gz
+    cd memcached-1.5.8
+    ./configure --prefix=${BASE_DIR}/memcached
+    if [ "$?" -ne 0 ]; then
+        exit 1
+    fi
+
+    make
+    if [ "$?" -ne 0 ]; then
+    	exit 1
+    fi
+
+    make install
+    if [ "$?" -eq 0 ]
+        exit 1
+    fi
+
+    cat > /etc/sysconfig/memcached << EOF
+PORT="11211"
+USER="memcached"
+MAXCONN="2000"
+CACHESIZE="128"
+OPTIONS=""
+EOF
+    cat > /usr/lib/systemd/system/memcached.service << EOF
+[Unit]
+Description=Memcached
+Before=httpd.service
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/sysconfig/memcached
+ExecStart=/usr/local/lnmp/memcached/bin/memcached -u \$USER -p \$PORT -m \$CACHESIZE -c \$MAXCONN \$OPTIONS
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    mkdir -p ${BASE_DIR}/memcached/lock/subsys/
+    mkdir ${BASE_DIR}/memcached/run
+    check_user_exists memcached
+    # systemctl daemon-reload
+    # systemctl start memcached.service
+fi
+
+echo "Done!"
+exit 0
