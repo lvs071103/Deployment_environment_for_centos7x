@@ -12,6 +12,9 @@ cd gdb-7.12
 ./configure
 if [ $? -eq 0 ];then
     make && make install
+    if [ $? -ne 0 ];then
+        exit 1
+    fi
 fi
 
 echo "Done!"
