@@ -74,8 +74,8 @@ fi
 check_user_exists mysql
 
 cat > /etc/profile.d/mysql.sh << EOF
-export "MYSQL_HOME=${dirName}/mysql"
-export "PATH=$MYSQL_HOME/bin:$PATH"
+export MYSQL_HOME=${dirName}/mysql
+export PATH=\$MYSQL_HOME/bin:\$PATH
 EOF
 
 echo "${dirName}/mysql/lib" > /etc/ld.so.conf.d/mysql.conf
