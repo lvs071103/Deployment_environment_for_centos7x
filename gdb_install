@@ -1,5 +1,7 @@
 #!/bin/bash
 
+yum install texinfo -y
+
 if [ ! -e ./gdb-7.12.tar.gz ];then
     wget http://ftp.gnu.org/gnu/gdb/gdb-7.12.tar.gz
 fi
